@@ -25,8 +25,8 @@ app.get('/', (req, res) => res.json({ message: 'PromoVault API Running' }));
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB Connected');
-    app.listen(process.env.PORT || 5000, () =>
-      console.log(`🚀 Server running on http://localhost:${process.env.PORT || 5000}`)
+    app.listen(process.env.PORT || 5000, '0.0.0.0', () =>
+      console.log(`🚀 Server running on port ${process.env.PORT || 5000}`)
     );
   })
   .catch(err => { console.error('❌ DB Error:', err); process.exit(1); });
