@@ -31,12 +31,18 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  // const handleLogout = () => {
+  //   logout();
+  //   toast.success('Logged out successfully');
+  //   navigate('/auth');
+  // };
+
   const handleLogout = () => {
+    if (!window.confirm('Are you sure you want to logout?')) return;
     logout();
     toast.success('Logged out successfully');
     navigate('/auth');
   };
-
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
   const navItems = NAV[user?.role] || [];
 
