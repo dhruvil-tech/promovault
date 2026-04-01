@@ -95,17 +95,11 @@ exports.forgotPassword = async (req, res) => {
     user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
     await user.save();
 
-    try {
-      await sendResetEmail(email, resetToken);
-      res.json({ success: true, message: 'Password reset email sent! Check your inbox.' });
-    } catch (emailError) {
-      console.error('Email error:', emailError);
-      res.json({ 
-        success: true, 
-        message: 'Email service unavailable. Use this token to reset: ' + resetToken,
-        resetToken: resetToken
-      });
-    }
+    res.json({ 
+      success: true, 
+      message: 'Use this token to reset your password: ' + resetToken,
+      resetToken: resetToken
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
