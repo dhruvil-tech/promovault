@@ -26,8 +26,24 @@ export default function BrowseOffers() {
   useEffect(() => { load(search, page); }, []);
 
   const copyCode = (code) => {
-    navigator.clipboard?.writeText(code).catch(() => {});
-    toast.success(`Code "${code}" copied!`);
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(code);
+        toast.success(`Code "${code}" copied!`);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = code;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        toast.success(`Code "${code}" copied!`);
+      }
+    } catch (err) {
+      toast.success(`Code: ${code}`);
+    }
   };
 
   const handleSearch = (e) => {

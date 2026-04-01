@@ -81,7 +81,7 @@ export default function AuthPage() {
     setLoading(true);
     try {
       const res = await authAPI.forgotPassword({ email: forgotEmail });
-      setSuccessMsg(`Password reset token: ${res.data.resetToken}\n\nCheck server console or email for the reset link.`);
+      setSuccessMsg(res.data.message);
       setForgotEmail('');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to generate reset token');

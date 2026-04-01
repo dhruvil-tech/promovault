@@ -1,5 +1,6 @@
 const jwt  = require('jsonwebtoken');
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 const User = require('../models/User');
 
 const signToken = (id) =>
@@ -9,6 +10,38 @@ const getResetToken = () => {
   const resetToken = crypto.randomBytes(20).toString('hex');
   const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
   return { resetToken, hashedToken };
+};
+
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+  port: process.env.EMAIL_PORT || 587,
+  secure: process.env.EMAIL_SECURE === 'true',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+const sendResetEmail = async (email, resetToken) => {
+  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth?reset=${resetToken}`;
+  
+  const message = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #c17f3e;">Password Reset Request</h2>
+      <p>You requested a password reset for your PromoVault account.</p>
+      <p>Click the button below to reset your password:</p>
+      <a href="${resetUrl}" style="display: inline-block; background: #c17f3e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">Reset Password</a>
+      <p>Or copy and paste this link:</p>
+      <p style="word-break: break-all; color: #666;">${resetUrl}</p>
+      <p style="color: #999; font-size: 12px;">This link expires in 10 minutes. If you didn't request this, please ignore this email.</p>
+    </div>
+  `;
+
+  await transporter.sendMail({
+    to: email,
+    subject: 'PromoVault - Password Reset',
+    html: message
+  });
 };
 
 // @route POST /api/auth/register
@@ -62,10 +95,17 @@ exports.forgotPassword = async (req, res) => {
     user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
     await user.save();
 
-    const resetUrl = `${req.protocol}://${req.get('host')}/api/auth/reset-password/${resetToken}`;
-    const message = `Your password reset token is: ${resetToken}\n\nIf you did not request this, please ignore this email.`;
-
-    res.json({ success: true, message: 'Password reset token generated', resetToken, resetUrl });
+    try {
+      await sendResetEmail(email, resetToken);
+      res.json({ success: true, message: 'Password reset email sent! Check your inbox.' });
+    } catch (emailError) {
+      console.error('Email error:', emailError);
+      res.json({ 
+        success: true, 
+        message: 'Email service unavailable. Use this token to reset: ' + resetToken,
+        resetToken: resetToken
+      });
+    }
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
