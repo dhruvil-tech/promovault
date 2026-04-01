@@ -26,23 +26,24 @@ export default function BrowseOffers() {
   useEffect(() => { load(search, page); }, []);
 
   const copyCode = (code) => {
+    if (typeof window === 'undefined') return;
+    
+    const textArea = window.document.createElement('textarea');
+    textArea.value = code;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    textArea.style.top = '-9999px';
+    window.document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
     try {
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(code);
-        toast.success(`Code "${code}" copied!`);
-      } else {
-        const textArea = document.createElement('textarea');
-        textArea.value = code;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        toast.success(`Code "${code}" copied!`);
-      }
+      window.document.execCommand('copy');
+      toast.success(`Code "${code}" copied!`);
     } catch (err) {
-      toast.success(`Code: ${code}`);
+      toast.error('Failed to copy. Please copy manually: ' + code);
+    } finally {
+      window.document.body.removeChild(textArea);
     }
   };
 
