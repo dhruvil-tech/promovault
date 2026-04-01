@@ -1,6 +1,6 @@
 const jwt  = require('jsonwebtoken');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 const User = require('../models/User');
 
 const signToken = (id) =>
@@ -12,20 +12,14 @@ const getResetToken = () => {
   return { resetToken, hashedToken };
 };
 
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: process.env.EMAIL_PORT || 587,
-  secure: process.env.EMAIL_SECURE === 'true',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+if (process.env.SENDGRID_API_KEY) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+}
 
 const sendResetEmail = async (email, resetToken) => {
   const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth?reset=${resetToken}`;
   
-  const message = `
+  const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #c17f3e;">Password Reset Request</h2>
       <p>You requested a password reset for your PromoVault account.</p>
@@ -37,11 +31,17 @@ const sendResetEmail = async (email, resetToken) => {
     </div>
   `;
 
-  await transporter.sendMail({
-    to: email,
-    subject: 'PromoVault - Password Reset',
-    html: message
-  });
+  if (process.env.SENDGRID_API_KEY) {
+    await sgMail.send({
+      to: email,
+      from: process.env.FROM_EMAIL || 'noreply@promovault.com',
+      subject: 'PromoVault - Password Reset',
+      html: htmlContent
+    });
+  } else {
+    console.log('Email would be sent to:', email);
+    console.log('Reset URL:', resetUrl);
+  }
 };
 
 // @route POST /api/auth/register
