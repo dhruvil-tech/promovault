@@ -3,9 +3,34 @@ const Product = require('../models/Product');
 // GET /api/products — all active products (customers) or all (admin/manager)
 exports.getProducts = async (req, res) => {
     try {
+        const { search, category, page = 1, limit = 10 } = req.query;
         const filter = req.user.role === 'customer' ? { isActive: true } : {};
-        const products = await Product.find(filter).sort('category name');
-        res.json({ success: true, count: products.length, data: products });
+
+        if (search) {
+            filter.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        if (category) {
+            filter.category = category;
+        }
+
+        const total = await Product.countDocuments(filter);
+        const products = await Product.find(filter)
+            .sort('category name')
+            .skip((page - 1) * limit)
+            .limit(parseInt(limit));
+
+        res.json({
+            success: true,
+            count: products.length,
+            total,
+            page: parseInt(page),
+            pages: Math.ceil(total / limit),
+            data: products
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

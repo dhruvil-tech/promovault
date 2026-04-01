@@ -1,16 +1,21 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { authAPI } from '../utils/api';
 import toast from 'react-hot-toast';
 
 const ROLE_DEFAULTS = { customer: '/dashboard', manager: '/manager/dashboard', admin: '/admin/dashboard' };
 
 export default function AuthPage() {
-  const [tab, setTab]         = useState('login');
+  const [searchParams] = useSearchParams();
+  const resetToken = searchParams.get('reset');
+  
+  const [tab, setTab]         = useState(resetToken ? 'reset' : 'login');
   const [role, setRole]       = useState('customer');
   const [regRole, setRegRole] = useState('customer');
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   // Login fields
   const [email, setEmail]     = useState('');
@@ -20,6 +25,13 @@ export default function AuthPage() {
   const [name, setName]       = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPass, setRegPass] = useState('');
+
+  // Forgot Password fields
+  const [forgotEmail, setForgotEmail] = useState('');
+
+  // Reset Password fields
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const { login, register } = useAuth();
   const navigate = useNavigate();
@@ -62,6 +74,40 @@ export default function AuthPage() {
     }
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!forgotEmail) return setError('Please enter your email address.');
+    setLoading(true);
+    try {
+      const res = await authAPI.forgotPassword({ email: forgotEmail });
+      setSuccessMsg(`Password reset token: ${res.data.resetToken}\n\nCheck server console or email for the reset link.`);
+      setForgotEmail('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to generate reset token');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!newPassword || !confirmPassword) return setError('Please fill in all fields.');
+    if (newPassword !== confirmPassword) return setError('Passwords do not match.');
+    if (newPassword.length < 6) return setError('Password must be at least 6 characters.');
+    setLoading(true);
+    try {
+      await authAPI.resetPassword(resetToken, newPassword);
+      toast.success('Password reset successful! Please login.');
+      navigate('/');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to reset password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="auth-wrap">
       <div className="auth-bg" />
@@ -71,11 +117,13 @@ export default function AuthPage() {
         <p className="auth-sub">Coupon &amp; Discount Management System</p>
 
         <div className="auth-tabs">
-          <button className={`auth-tab${tab==='login'?' active':''}`}    onClick={() => { setTab('login');    setError(''); }}>Sign In</button>
-          <button className={`auth-tab${tab==='register'?' active':''}`} onClick={() => { setTab('register'); setError(''); }}>Register</button>
+          <button className={`auth-tab${tab==='login'?' active':''}`}    onClick={() => { setTab('login');    setError(''); setSuccessMsg(''); }}>Sign In</button>
+          <button className={`auth-tab${tab==='register'?' active':''}`} onClick={() => { setTab('register'); setError(''); setSuccessMsg(''); }}>Register</button>
+          <button className={`auth-tab${tab==='forgot'?' active':''}`}    onClick={() => { setTab('forgot');   setError(''); setSuccessMsg(''); }}>Forgot Password</button>
         </div>
 
         {error && <div className="error-msg">{error}</div>}
+        {successMsg && <div className="success-msg" style={{whiteSpace:'pre-wrap',fontSize:'12px',padding:'10px',background:'#d4edda',color:'#155724',borderRadius:'6px',marginBottom:'15px'}}>{successMsg}</div>}
 
         {/* ── Login ── */}
         {tab === 'login' && (
@@ -100,12 +148,6 @@ export default function AuthPage() {
               <input className="form-input" type="password" placeholder="••••••••" value={pass} onChange={e=>setPass(e.target.value)} />
             </div>
             <button className="btn-primary" type="submit" disabled={loading}>{loading ? 'Signing in…' : 'Sign In →'}</button>
-            {/* <div className="demo-creds">
-              <strong>Demo credentials:</strong><br />
-              Customer: customer@demo.com / pass123<br />
-              Manager: manager@demo.com / pass123<br />
-              Admin: admin@demo.com / pass123
-            </div> */}
           </form>
         )}
 
@@ -139,6 +181,33 @@ export default function AuthPage() {
               <input className="form-input" type="password" placeholder="Min 6 characters" value={regPass} onChange={e=>setRegPass(e.target.value)} />
             </div>
             <button className="btn-primary" type="submit" disabled={loading}>{loading ? 'Creating…' : 'Create Account →'}</button>
+          </form>
+        )}
+
+        {/* ── Forgot Password ── */}
+        {tab === 'forgot' && (
+          <form onSubmit={handleForgotPassword}>
+            <div className="form-group">
+              <label className="form-label">Email Address</label>
+              <input className="form-input" type="email" placeholder="you@example.com" value={forgotEmail} onChange={e=>setForgotEmail(e.target.value)} />
+            </div>
+            <button className="btn-primary" type="submit" disabled={loading}>{loading ? 'Sending…' : 'Get Reset Token →'}</button>
+            <button className="btn-secondary" type="button" style={{marginTop:'10px'}} onClick={() => { setTab('login'); setError(''); }}>Back to Login</button>
+          </form>
+        )}
+
+        {/* ── Reset Password (via token link) ── */}
+        {(tab === 'reset' || resetToken) && (
+          <form onSubmit={handleResetPassword}>
+            <div className="form-group">
+              <label className="form-label">New Password</label>
+              <input className="form-input" type="password" placeholder="Min 6 characters" value={newPassword} onChange={e=>setNewPassword(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Confirm Password</label>
+              <input className="form-input" type="password" placeholder="Repeat password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} />
+            </div>
+            <button className="btn-primary" type="submit" disabled={loading}>{loading ? 'Resetting…' : 'Reset Password'}</button>
           </form>
         )}
       </div>

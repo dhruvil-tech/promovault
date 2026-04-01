@@ -10,14 +10,29 @@ const CAT_ICON = { Electronics: '🔌', Accessories: '🎒', Stationery: '📝',
 export default function ManageProducts() {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [modal, setModal] = useState(null); // null | 'create' | productObj
+    const [modal, setModal] = useState(null);
     const [form, setForm] = useState(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [filter, setFilter] = useState('All');
+    const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const [pages, setPages] = useState(1);
+    const [total, setTotal] = useState(0);
 
-    const load = () => productAPI.getAll().then(r => setProducts(r.data.data)).finally(() => setLoading(false));
-    useEffect(() => { load(); }, []);
+    const load = (searchQuery = '', pageNum = 1, categoryFilter = '') => {
+        setLoading(true);
+        productAPI.getAll({ search: searchQuery, category: categoryFilter || undefined, page: pageNum, limit: 10 })
+            .then(r => {
+                setProducts(r.data.data);
+                setPage(r.data.page);
+                setPages(r.data.pages);
+                setTotal(r.data.total);
+            })
+            .finally(() => setLoading(false));
+    };
+
+    useEffect(() => { load(search, page, filter === 'All' ? '' : filter); }, []);
 
     const openCreate = () => { setForm(EMPTY_FORM); setError(''); setModal('create'); };
     const openEdit = (p) => { setForm({ name: p.name, description: p.description, price: p.price, category: p.category, stock: p.stock }); setError(''); setModal(p); };
@@ -55,11 +70,29 @@ export default function ManageProducts() {
         if (!window.confirm(`Delete "${name}"?`)) return;
         await productAPI.remove(id);
         toast.success(`"${name}" deleted`);
-        load();
+        load(search, page, filter === 'All' ? '' : filter);
+    };
+
+    const handleCategoryFilter = (cat) => {
+        setFilter(cat);
+        setPage(1);
+        load(search, 1, cat === 'All' ? '' : cat);
+    };
+
+    const handleSearch = (e) => {
+        e.preventDefault();
+        setPage(1);
+        load(search, 1, filter === 'All' ? '' : filter);
+    };
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= pages) {
+            setPage(newPage);
+            load(search, newPage, filter === 'All' ? '' : filter);
+        }
     };
 
     const categories = ['All', ...CATEGORIES];
-    const filtered = filter === 'All' ? products : products.filter(p => p.category === filter);
 
     if (loading) return (
         <>
@@ -94,10 +127,23 @@ export default function ManageProducts() {
                     </div>
                 </div>
 
+                {/* Search & Filter */}
+                <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <input
+                        className="form-input"
+                        placeholder="Search products..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        style={{ maxWidth: 300 }}
+                    />
+                    <button className="btn btn-accent" onClick={handleSearch}>Search</button>
+                    {search && <button className="btn" onClick={() => { setSearch(''); load('', 1, filter === 'All' ? '' : filter); }}>Clear</button>}
+                </div>
+
                 {/* Category Filter */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
                     {categories.map(cat => (
-                        <button key={cat} className={`btn btn-sm${filter === cat ? ' btn-accent' : ''}`} onClick={() => setFilter(cat)}>
+                        <button key={cat} className={`btn btn-sm${filter === cat ? ' btn-accent' : ''}`} onClick={() => handleCategoryFilter(cat)}>
                             {cat !== 'All' && CAT_ICON[cat]} {cat}
                         </button>
                     ))}
@@ -110,7 +156,7 @@ export default function ManageProducts() {
                             <tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr>
                         </thead>
                         <tbody>
-                            {filtered.map(p => (
+                            {products.map(p => (
                                 <tr key={p._id}>
                                     <td>
                                         <div style={{ fontWeight: 600 }}>{p.name}</div>
@@ -135,12 +181,19 @@ export default function ManageProducts() {
                                     </td>
                                 </tr>
                             ))}
-                            {filtered.length === 0 && (
+                            {products.length === 0 && (
                                 <tr><td colSpan={6}><div className="empty-state"><div className="empty-icon">📦</div><div className="empty-text">No products found</div></div></td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
+                {pages > 1 && (
+                    <div className="pagination" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 20 }}>
+                        <button className="btn btn-sm" onClick={() => handlePageChange(page - 1)} disabled={page === 1}>Previous</button>
+                        <span style={{ color: 'var(--text2)', fontSize: 13 }}>Page {page} of {pages} ({total} total)</span>
+                        <button className="btn btn-sm" onClick={() => handlePageChange(page + 1)} disabled={page === pages}>Next</button>
+                    </div>
+                )}
             </div>
 
             {/* Modal */}

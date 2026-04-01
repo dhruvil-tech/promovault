@@ -1,8 +1,15 @@
 const jwt  = require('jsonwebtoken');
+const crypto = require('crypto');
 const User = require('../models/User');
 
 const signToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE });
+
+const getResetToken = () => {
+  const resetToken = crypto.randomBytes(20).toString('hex');
+  const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+  return { resetToken, hashedToken };
+};
 
 // @route POST /api/auth/register
 exports.register = async (req, res) => {
@@ -16,7 +23,7 @@ exports.register = async (req, res) => {
     const assignedRole = allowedRoles.includes(role) ? role : 'customer';
 
     const user = await User.create({ name, email, password, role: assignedRole });
-    res.status(201).json({ success: true, token: signToken(user._id), user: sanitize(user) });
+    res.status(201).json({ success: true, token: signToken(user._id), user: sanitize(user) });//sanitize is used for don't send sensitive data like password,jwt_token etc..
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -32,7 +39,7 @@ exports.login = async (req, res) => {
     if (!user.isActive)
       return res.status(403).json({ success: false, message: 'Account deactivated' });
 
-    res.json({ success: true, token: signToken(user._id), user: sanitize(user) });
+    res.json({ success: true, token: signToken(user._id), user: sanitize(user) });//sanitize is used for don't send sensitive data like password,jwt_token etc..
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -41,6 +48,70 @@ exports.login = async (req, res) => {
 // @route GET /api/auth/me
 exports.getMe = async (req, res) => {
   res.json({ success: true, user: sanitize(req.user) });
+};
+
+// @route POST /api/auth/forgot-password
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ success: false, message: 'No user found with this email' });
+
+    const { resetToken, hashedToken } = getResetToken();
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+    await user.save();
+
+    const resetUrl = `${req.protocol}://${req.get('host')}/api/auth/reset-password/${resetToken}`;
+    const message = `Your password reset token is: ${resetToken}\n\nIf you did not request this, please ignore this email.`;
+
+    res.json({ success: true, message: 'Password reset token generated', resetToken, resetUrl });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @route POST /api/auth/reset-password/:resetToken
+exports.resetPassword = async (req, res) => {
+  try {
+    const { resetToken } = req.params;
+    const { password } = req.body;
+
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() }
+    });
+
+    if (!user) return res.status(400).json({ success: false, message: 'Invalid or expired token' });
+
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save();
+
+    res.json({ success: true, message: 'Password reset successful' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @route POST /api/auth/change-password
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findById(req.user._id);
+
+    if (!(await user.matchPassword(currentPassword)))
+      return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 };
 
 const sanitize = (u) => ({

@@ -3,11 +3,33 @@ const Coupon = require('../models/Coupon');
 // @route GET /api/coupons  (admin/manager: all | customer: active only)
 exports.getCoupons = async (req, res) => {
   try {
+    const { search, page = 1, limit = 10 } = req.query;
     const filter = req.user.role === 'customer'
       ? { isActive: true, expiryDate: { $gte: new Date() } }
       : {};
-    const coupons = await Coupon.find(filter).populate('createdBy', 'name email').sort('-createdAt');
-    res.json({ success: true, count: coupons.length, data: coupons });
+
+    if (search) {
+      filter.$or = [
+        { code: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const total = await Coupon.countDocuments(filter);
+    const coupons = await Coupon.find(filter)
+      .populate('createdBy', 'name email')
+      .sort('-createdAt')
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    res.json({
+      success: true,
+      count: coupons.length,
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / limit),
+      data: coupons
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -9,13 +9,41 @@ const EMPTY_FORM = { code:'', description:'', type:'percent', value:'', minOrder
 export default function ManageCoupons() {
   const [coupons, setCoupons]   = useState([]);
   const [loading, setLoading]   = useState(true);
-  const [modal, setModal]       = useState(null); // null | 'create' | couponObj
+  const [modal, setModal]       = useState(null);
   const [form, setForm]         = useState(EMPTY_FORM);
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState('');
+  const [search, setSearch]     = useState('');
+  const [page, setPage]         = useState(1);
+  const [pages, setPages]       = useState(1);
+  const [total, setTotal]       = useState(0);
 
-  const load = () => couponAPI.getAll().then(r => setCoupons(r.data.data)).finally(() => setLoading(false));
-  useEffect(() => { load(); }, []);
+  const load = (searchQuery = '', pageNum = 1) => {
+    setLoading(true);
+    couponAPI.getAll({ search: searchQuery, page: pageNum, limit: 10 })
+      .then(r => {
+        setCoupons(r.data.data);
+        setPage(r.data.page);
+        setPages(r.data.pages);
+        setTotal(r.data.total);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(search, page); }, []);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setPage(1);
+    load(search, 1);
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pages) {
+      setPage(newPage);
+      load(search, newPage);
+    }
+  };
 
   const openCreate = () => { setForm(EMPTY_FORM); setError(''); setModal('create'); };
   const openEdit   = (c)  => { setForm({ code: c.code, description: c.description, type: c.type, value: c.value, minOrder: c.minOrder, usageLimit: c.usageLimit, expiryDate: c.expiryDate.slice(0,10) }); setError(''); setModal(c); };
@@ -57,6 +85,17 @@ export default function ManageCoupons() {
         <button className="btn btn-accent" onClick={openCreate}>+ Create Coupon</button>
       </Topbar>
       <div className="content-area">
+        <div className="search-bar" style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+          <input
+            className="form-input"
+            placeholder="Search by code or description..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ maxWidth: 400 }}
+          />
+          <button className="btn btn-accent" onClick={handleSearch}>Search</button>
+          {search && <button className="btn" onClick={() => { setSearch(''); load('', 1); }}>Clear</button>}
+        </div>
         <div className="table-card">
           <table>
             <thead><tr><th>Code</th><th>Description</th><th>Discount</th><th>Min Order</th><th>Expiry</th><th>Usage</th><th>Status</th><th>Actions</th></tr></thead>
@@ -76,9 +115,19 @@ export default function ManageCoupons() {
                   </td>
                 </tr>
               ))}
+              {coupons.length === 0 && (
+                <tr><td colSpan={8}><div className="empty-state"><div className="empty-icon">🎟</div><div className="empty-text">No coupons found</div></div></td></tr>
+              )}
             </tbody>
           </table>
         </div>
+        {pages > 1 && (
+          <div className="pagination" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 20 }}>
+            <button className="btn btn-sm" onClick={() => handlePageChange(page - 1)} disabled={page === 1}>Previous</button>
+            <span style={{ color: 'var(--text2)', fontSize: 13 }}>Page {page} of {pages} ({total} total)</span>
+            <button className="btn btn-sm" onClick={() => handlePageChange(page + 1)} disabled={page === pages}>Next</button>
+          </div>
+        )}
       </div>
 
       {modal && (

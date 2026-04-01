@@ -3,8 +3,35 @@ const User = require('../models/User');
 // @route GET /api/users  (admin)
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-password').sort('-createdAt');
-    res.json({ success: true, count: users.length, data: users });
+    const { search, role, page = 1, limit = 10 } = req.query;
+    const filter = {};
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    if (role) {
+      filter.role = role;
+    }
+
+    const total = await User.countDocuments(filter);
+    const users = await User.find(filter)
+      .select('-password')
+      .sort('-createdAt')
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    res.json({
+      success: true,
+      count: users.length,
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / limit),
+      data: users
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

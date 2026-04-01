@@ -6,16 +6,41 @@ import toast from 'react-hot-toast';
 export default function BrowseOffers() {
   const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
-  useEffect(() => {
-    couponAPI.getAll()
-      .then(r => setCoupons(r.data.data))
+  const load = (searchQuery = '', pageNum = 1) => {
+    setLoading(true);
+    couponAPI.getAll({ search: searchQuery, page: pageNum, limit: 9 })
+      .then(r => {
+        setCoupons(r.data.data);
+        setPage(r.data.page);
+        setPages(r.data.pages);
+        setTotal(r.data.total);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { load(search, page); }, []);
 
   const copyCode = (code) => {
     navigator.clipboard?.writeText(code).catch(() => {});
     toast.success(`Code "${code}" copied!`);
+  };
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setPage(1);
+    load(search, 1);
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pages) {
+      setPage(newPage);
+      load(search, newPage);
+    }
   };
 
   if (loading) return <><Topbar title="Browse Offers" /><div className="loader-wrap"><div className="loader" /></div></>;
@@ -24,6 +49,18 @@ export default function BrowseOffers() {
     <>
       <Topbar title="Browse Offers" />
       <div className="content-area">
+        <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+          <input
+            className="form-input"
+            placeholder="Search by code or description..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ maxWidth: 400 }}
+          />
+          <button className="btn btn-accent" onClick={handleSearch}>Search</button>
+          {search && <button className="btn" onClick={() => { setSearch(''); load('', 1); }}>Clear</button>}
+        </div>
+
         {coupons.length === 0
           ? <div className="empty-state"><div className="empty-icon">🏷</div><div className="empty-text">No active offers right now</div></div>
           : <div className="coupons-grid">
@@ -64,6 +101,13 @@ export default function BrowseOffers() {
                 </div>
               ))}
             </div>}
+        {pages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 20 }}>
+            <button className="btn btn-sm" onClick={() => handlePageChange(page - 1)} disabled={page === 1}>Previous</button>
+            <span style={{ color: 'var(--text2)', fontSize: 13 }}>Page {page} of {pages} ({total} total)</span>
+            <button className="btn btn-sm" onClick={() => handlePageChange(page + 1)} disabled={page === pages}>Next</button>
+          </div>
+        )}
       </div>
     </>
   );

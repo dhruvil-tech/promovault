@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import ChangePasswordModal from './ChangePasswordModal';
 
 const NAV = {
   customer: [
@@ -30,12 +31,7 @@ const ROLE_LABEL = { customer: 'Customer Portal', manager: 'Marketing Manager', 
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-
-  // const handleLogout = () => {
-  //   logout();
-  //   toast.success('Logged out successfully');
-  //   navigate('/auth');
-  // };
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const handleLogout = () => {
     if (!window.confirm('Are you sure you want to logout?')) return;
@@ -47,39 +43,45 @@ export default function Layout() {
   const navItems = NAV[user?.role] || [];
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="sidebar-logo">
-          <span className="logo-dot" />
-          PromoVault
-        </div>
-        <div className="sidebar-role-badge">{ROLE_LABEL[user?.role]}</div>
-        <nav className="sidebar-nav">
-          <div className="nav-section-title">Menu</div>
-          {navItems.map(item => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="sidebar-user">
-          <div className="user-avatar">{initials}</div>
-          <div className="user-info">
-            <div className="user-name">{user?.name}</div>
-            <div className="user-email">{user?.email}</div>
+    <>
+      {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
+      <div className="app-shell">
+        <aside className="sidebar">
+          <div className="sidebar-logo">
+            <span className="logo-dot" />
+            PromoVault
           </div>
-          <button className="logout-btn" onClick={handleLogout} title="Logout">⏻</button>
-        </div>
-      </aside>
+          <div className="sidebar-role-badge">{ROLE_LABEL[user?.role]}</div>
+          <nav className="sidebar-nav">
+            <div className="nav-section-title">Menu</div>
+            {navItems.map(item => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+              >
+                <span className="nav-icon">{item.icon}</span>
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+          <div className="sidebar-user">
+            <div className="user-avatar">{initials}</div>
+            <div className="user-info">
+              <div className="user-name">{user?.name}</div>
+              <div className="user-email">{user?.email}</div>
+            </div>
+            <button className="logout-btn" onClick={handleLogout} title="Logout">⏻</button>
+          </div>
+          <button className="change-pass-btn" onClick={() => setShowChangePassword(true)} style={{margin:'10px',padding:'8px 16px',background:'var(--bg3)',color:'var(--text2)',border:'1px solid var(--border)',borderRadius:'6px',cursor:'pointer',fontSize:'12px'}}>
+            🔑 Change Password
+          </button>
+        </aside>
 
-      <div className="main-content">
-        <Outlet />
+        <div className="main-content">
+          <Outlet />
+        </div>
       </div>
-    </div>
+    </>
   );
 }

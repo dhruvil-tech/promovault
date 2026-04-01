@@ -16,9 +16,25 @@ export default function UserManagement() {
   const [form, setForm]     = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
+  const [search, setSearch]  = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [page, setPage]     = useState(1);
+  const [pages, setPages]   = useState(1);
+  const [total, setTotal]   = useState(0);
 
-  const load = () => userAPI.getAll().then(r => setUsers(r.data.data)).finally(() => setLoading(false));
-  useEffect(() => { load(); }, []);
+  const load = (searchQuery = '', roleQ = '', pageNum = 1) => {
+    setLoading(true);
+    userAPI.getAll({ search: searchQuery, role: roleQ || undefined, page: pageNum, limit: 10 })
+      .then(r => {
+        setUsers(r.data.data);
+        setPage(r.data.page);
+        setPages(r.data.pages);
+        setTotal(r.data.total);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(search, roleFilter, page); }, []);
 
   const openCreate = () => { setForm(EMPTY_FORM); setEditUser(null); setError(''); setModal(true); };
   const openEdit   = (u)  => { setForm({ name:u.name, email:u.email, password:'', role:u.role }); setEditUser(u); setError(''); setModal(true); };
@@ -51,9 +67,28 @@ export default function UserManagement() {
     try {
       await userAPI.remove(id);
       toast.success(`User "${name}" removed.`);
-      load();
+      load(search, roleFilter, page);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Delete failed');
+    }
+  };
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setPage(1);
+    load(search, roleFilter, 1);
+  };
+
+  const handleRoleFilter = (role) => {
+    setRoleFilter(role);
+    setPage(1);
+    load(search, role, 1);
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pages) {
+      setPage(newPage);
+      load(search, roleFilter, newPage);
     }
   };
 
@@ -65,6 +100,26 @@ export default function UserManagement() {
         <button className="btn btn-accent" onClick={openCreate}>+ Add User</button>
       </Topbar>
       <div className="content-area">
+        <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            className="form-input"
+            placeholder="Search by name or email..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ maxWidth: 300 }}
+          />
+          <button className="btn btn-accent" onClick={handleSearch}>Search</button>
+          {search && <button className="btn" onClick={() => { setSearch(''); load('', roleFilter, 1); }}>Clear</button>}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          {['', 'customer', 'manager', 'admin'].map(r => (
+            <button key={r} className={`btn btn-sm${roleFilter === r ? ' btn-accent' : ''}`} onClick={() => handleRoleFilter(r)}>
+              {r === '' ? 'All' : r.charAt(0).toUpperCase() + r.slice(1)}
+            </button>
+          ))}
+        </div>
+
         <div className="table-card">
           <table>
             <thead>
@@ -91,9 +146,19 @@ export default function UserManagement() {
                   </td>
                 </tr>
               ))}
+              {users.length === 0 && (
+                <tr><td colSpan={6}><div className="empty-state"><div className="empty-icon">👥</div><div className="empty-text">No users found</div></div></td></tr>
+              )}
             </tbody>
           </table>
         </div>
+        {pages > 1 && (
+          <div className="pagination" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 20 }}>
+            <button className="btn btn-sm" onClick={() => handlePageChange(page - 1)} disabled={page === 1}>Previous</button>
+            <span style={{ color: 'var(--text2)', fontSize: 13 }}>Page {page} of {pages} ({total} total)</span>
+            <button className="btn btn-sm" onClick={() => handlePageChange(page + 1)} disabled={page === pages}>Next</button>
+          </div>
+        )}
       </div>
 
       {modal && (
